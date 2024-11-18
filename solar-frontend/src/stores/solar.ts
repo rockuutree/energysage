@@ -1,64 +1,87 @@
 // src/stores/solar.ts
 import { defineStore } from 'pinia';
 import axios from 'axios';
-import type { SolarInstallation, StateStats, StatsResponse } from '../types/solar';
 
-const API_BASE = 'http://localhost:8000';
+interface SolarInstallation {
+  case_id: number;
+  name: string | null;
+  county: string;
+  latitude: number;
+  longitude: number;
+  capacity_ac: number | null;
+  capacity_dc: number | null;
+  year: number | null;
+  technology: string | null;
+  axis_type: string | null;
+  has_battery: boolean;
+}
+
+interface StateStats {
+  totalInstallations: number;
+  totalCapacity: number;
+  averageCapacity: number;
+  totalCounties: number;
+  yearRange: [number, number] | null;
+}
+
+interface StateInfo {
+  code: string;
+  installations: number;
+  totalCapacity: number;
+}
 
 export const useSolarStore = defineStore('solar', {
   state: () => ({
-    installations: [] as SolarInstallation[],
     selectedState: null as string | null,
-    stateStats: new Map<string, StateStats>(),
+    stateData: null as { stats: StateStats; installations: SolarInstallation[] } | null,
+    allStates: [] as StateInfo[],
     loading: false,
-    error: null as string | null,
+    error: null as string | null
   }),
 
   actions: {
-    async fetchInstallations(state?: string) {
-      this.loading = true;
+    async fetchStates() {
       try {
-        const params = state ? { state } : {};
-        const response = await axios.get(`${API_BASE}/installations`, { params });
-        this.installations = response.data.installations;
+        const response = await axios.get('http://localhost:8000/api/states');
+        this.allStates = response.data.states;
       } catch (error) {
-        this.error = 'Failed to fetch installations';
-        console.error(error);
+        console.error('Error fetching states:', error);
+        this.error = 'Failed to fetch states';
+      }
+    },
+
+    async fetchStateData(state: string) {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        const response = await axios.get(`http://localhost:8000/api/state/${state}`);
+        if (response.data.error) {
+          this.error = response.data.error;
+          this.stateData = null;
+        } else {
+          this.stateData = response.data;
+          this.selectedState = state;
+        }
+      } catch (error) {
+        console.error(`Failed to fetch data for ${state}:`, error);
+        this.error = `Failed to fetch data for ${state}`;
+        this.stateData = null;
       } finally {
         this.loading = false;
       }
     },
 
-    async fetchStateStats(state: string) {
-      if (this.stateStats.has(state)) return;
+    clearSelectedState() {
+      this.selectedState = null;
+      this.stateData = null;
+      this.error = null;
+    }
+  },
 
-      try {
-        const response = await axios.get<StatsResponse>(`${API_BASE}/installations`, {
-          params: { state }
-        });
-        
-        this.stateStats.set(state, {
-          totalInstallations: response.data.installations.length,
-          totalCapacity: response.data.installations.reduce((sum, inst) => 
-            sum + (inst.capacity_ac || 0), 0),
-          averageSize: response.data.installations.reduce((sum, inst) => 
-            sum + (inst.capacity_ac || 0), 0) / response.data.installations.length,
-          yearRange: [
-            Math.min(...response.data.installations.map(i => i.year || 0)),
-            Math.max(...response.data.installations.map(i => i.year || 0))
-          ]
-        });
-      } catch (error) {
-        console.error(`Failed to fetch stats for ${state}:`, error);
-      }
-    },
-
-    setSelectedState(state: string | null) {
-      this.selectedState = state;
-      if (state) {
-        this.fetchInstallations(state);
-        this.fetchStateStats(state);
-      }
+  getters: {
+    statesSortedByCapacity: (state) => {
+      return [...state.allStates].sort((a, b) => b.totalCapacity - a.totalCapacity);
     }
   }
 });
