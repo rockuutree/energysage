@@ -1,5 +1,13 @@
+
+/**
+ * StateInfoPanel Component
+ * 
+ * A detailed panel component that displays solar installation information for a selected state.
+ * Features include summary statistics, searchable installation list, and pagination.
+ */
 <template>
   <div class="state-info">
+  <!-- Header with state name and close button -->
     <div class="header">
       <h2>{{ selectedState }}</h2>
       <button @click="onClose" class="close-btn">&times;</button>
@@ -15,9 +23,9 @@
       <p>{{ error }}</p>
     </div>
 
-    <!-- Data Display -->
+    <!-- Main Data Display -->
     <div v-else-if="stateData?.stats" class="state-data">
-      <!-- Stats Grid -->
+      <!-- Stats Grid 2x2-->
       <div class="stats-grid">
         <div class="stat-box">
           <h3>Total Installations</h3>
@@ -39,7 +47,7 @@
 
       <hr class="divider" />
 
-      <!-- Installations Section -->
+      <!-- Installations Section with search and list-->
       <div class="installations-section">
         <div class="list-header">
           <h3>Recent Installations</h3>
@@ -52,14 +60,16 @@
             />
           </div>
         </div>
-
+        <!-- No Installations state -->
         <div v-if="!stateData.installations?.length" class="no-data">
           <p>No installations found</p>
         </div>
         <div v-else>
+        <!-- No Search Results State -->
           <div v-if="!filteredInstallations.length" class="no-data">
             <p>No matching installations found</p>
           </div>
+          <!-- Installation List -->
           <div v-else class="installations-list">
             <div 
               v-for="installation in paginatedInstallations" 
@@ -112,27 +122,42 @@
 import { computed, ref, watch } from 'vue';
 import type { StateData } from '../types/solar';
 
+/**
+ * Component Props Interface
+ * @interface Props
+ */
 interface Props {
-  selectedState: string | null;
-  stateData: StateData | null;
-  loading: boolean;
-  error: string | null;
+  selectedState: string | null; // Selected State Code
+  stateData: StateData | null; // State solar installation data
+  loading: boolean; // Loading state
+  error: string | null; // Error message
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<{
-  (e: 'close'): void;
+  (e: 'close'): void; // event emitted when panel is closed
 }>();
 
-const searchQuery = ref('');
-const currentPage = ref(1);
-const itemsPerPage = 5;
+const searchQuery = ref(''); // Installation search query
+const currentPage = ref(1); // Current page number
+const itemsPerPage = 5; // Number of installations per page
 
+
+/**
+ * Formats a number with one decimal place
+ * @param value - Number to format
+ * @returns Formatted string or 'N/A' if null/undefined
+ */
 const formatNumber = (value: number | null | undefined): string => {
   if (value === null || value === undefined) return 'N/A';
   return value.toFixed(1);
 };
 
+
+/**
+ * Filtered and sorted installations based on search query
+ * Sorts by year (descending) and filters by search term
+ */
 const filteredInstallations = computed(() => {
   if (!props.stateData?.installations) return [];
   
@@ -153,6 +178,11 @@ const filteredInstallations = computed(() => {
   });
 });
 
+/**
+ * Pagination computed properties
+ */
+
+
 const totalPages = computed(() => {
   return Math.ceil(filteredInstallations.value.length / itemsPerPage);
 });
@@ -169,6 +199,9 @@ const paginatedInstallations = computed(() => {
   return filteredInstallations.value.slice(startIndex.value, endIndex.value);
 });
 
+/**
+ * Pagination navigation methods
+ */
 const nextPage = () => {
   if (currentPage.value < totalPages.value) {
     currentPage.value++;
@@ -181,10 +214,17 @@ const previousPage = () => {
   }
 };
 
+
+/**
+ * Reset to first page when search query changes
+ */
 watch(searchQuery, () => {
   currentPage.value = 1;
 });
 
+/**
+ * Emits close event to parent
+ */
 const onClose = () => {
   emit('close');
 };

@@ -1,16 +1,32 @@
 // src/components/SolarMap.vue
+
+
+
+/**
+ * SolarMap Component
+ * 
+ * Displays an interactive map of solar installations across the United States.
+ * Features include state selection, hover effects, tooltips, and a detailed sidebar with state information.
+ */
 <template>
+  <!-- Main Container for the map and sidebar -->
   <div class="map-container">
+  <!-- Map container element, referenced for maplibre initialization -->
     <div ref="mapContainer" class="map"></div>
     
+    <!-- Sidebar -->
     <!-- Empty State -->
     <div v-if="!selectedState" class="sidebar">
       <h2 class="text-2xl font-semibold mb-4">US Solar Installations Map</h2>
       <p class="text-gray-600 mb-4">Click on a state to view installation details</p>
+
+      <!-- Overview section showing statistics -->
       <div v-if="!loading" class="overview">
         <div class="stats-overview">
           <h3 class="text-xl font-medium mb-4">Overview</h3>
           <p><strong>States with Data:</strong> {{ allStates.length }}</p>
+
+          <!-- Top States Listing -->
           <div class="top-states mt-6">
             <h4 class="text-lg font-medium mb-3">Top States by Capacity:</h4>
             <ul class="space-y-2">
@@ -27,7 +43,7 @@
       </div>
     </div>
 
-    <!-- State Information Panel -->
+    <!-- State Information Panel when a state is selected -->
     <div v-else class="sidebar">
       <StateInfoPanel
         :selected-state="selectedState"
@@ -48,28 +64,70 @@ import { storeToRefs } from 'pinia';
 import StateInfoPanel from './StateInfoPanel.vue';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
+
+
+
+// MapTiler API key for base map tiles
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY;
 
-// Refs
-const mapContainer = ref<HTMLElement | null>(null);
-const map = ref<maplibregl.Map | null>(null);
-const store = useSolarStore();
+/**
+ * Component State
+ */
+const mapContainer = ref<HTMLElement | null>(null);  // Reference to map container element
+const map = ref<maplibregl.Map | null>(null); // MapLibre instance
+const store = useSolarStore(); // Solar data store
 const { selectedState, stateData, loading, error, allStates } = storeToRefs(store);
 
-// Utility functions
+
+/**
+ * Watches for changes in selected state and updates map styling
+ */
+watch(selectedState, (newState) => {
+  if (!map.value) return;
+
+  map.value.setPaintProperty('state-fills', 'fill-opacity', [
+    'case',
+    ['boolean', ['==', ['get', 'postal'], newState], false],
+    0.9,
+    ['boolean', ['==', ['feature-state', 'hover'], true], false],
+    0.7,
+    0.5
+  ]);
+});
+
+/**
+ * Initialize component on mount
+ * Fetches state data and sets up map
+ */
+onMounted(async () => {
+  await store.fetchStates();
+  initializeMap();
+});
+
+/**
+ * Formats a number for display, showing one decimal place
+ * @param value - Number to format
+ * @returns Formatted string with one decimal place or 'N/A'
+ */
+
 const formatNumber = (value: number | null | undefined): string => {
   if (value === null || value === undefined) return 'N/A';
   return value.toFixed(1);
 };
 
-// Computed properties
+/**
+ * Returns top 5 states sorted by total capacity
+ */
 const topStates = computed(() => {
   return [...allStates.value]
     .sort((a, b) => b.totalCapacity - a.totalCapacity)
     .slice(0, 5);
 });
 
-// Map initialization and setup
+/**
+ * Initializes the MapLibre map instance
+ * Sets up the basic map configuration and triggers layer setup
+ */
 const initializeMap = () => {
   if (!mapContainer.value) return;
 
@@ -83,17 +141,21 @@ const initializeMap = () => {
   map.value.on('load', setupMapLayers);
 };
 
-// Map layers setup
+/**
+ * Sets up map layers including state boundaries and fill colors
+ * Fetches GeoJSON data and processes it with solar installation data
+ */
 const setupMapLayers = async () => {
   if (!map.value) return;
 
   try {
+     // Fetch state boundary data
     const response = await fetch('https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_110m_admin_1_states_provinces_shp.geojson');
     const statesData = await response.json();
     
     const maxCapacity = Math.max(...allStates.value.map(s => s.totalCapacity));
     
-    // Process GeoJSON data
+   // Process GeoJSON data to include solar capacity information
     const processedData = {
       type: 'FeatureCollection',
       features: statesData.features
@@ -114,14 +176,14 @@ const setupMapLayers = async () => {
         })
     };
 
-    // Add source
+    // Add data source to map
     map.value.addSource('states', {
       type: 'geojson',
       data: processedData,
       generateId: true
     });
 
-    // Add fill layer
+    // Add fill layer with capacity-based colors
     map.value.addLayer({
       id: 'state-fills',
       type: 'fill',
@@ -131,25 +193,25 @@ const setupMapLayers = async () => {
           'interpolate',
           ['linear'],
           ['get', 'capacity'],
-          0, '#CCCCCC',
-          1, '#FFF9C4',
-          maxCapacity * 0.25, '#FFEB3B',
-          maxCapacity * 0.5, '#FDD835',
-          maxCapacity * 0.75, '#FFB300',
-          maxCapacity, '#FF8F00'
+          0, '#CCCCCC', // No data
+          1, '#FFF9C4', // Minimal capacity
+          maxCapacity * 0.25, '#FFEB3B', // Quarter capacity
+          maxCapacity * 0.5, '#FDD835', // Half capacity
+          maxCapacity * 0.75, '#FFB300',  // Three-quarter capacity
+          maxCapacity, '#FF8F00'  // Full capacity
         ],
         'fill-opacity': [
           'case',
           ['boolean', ['==', ['get', 'postal'], selectedState.value], false],
-          0.9,
+          0.9,  // Selected state
           ['boolean', ['==', ['feature-state', 'hover'], true], false],
-          0.7,
-          0.5
+          0.7, // Hovered state
+          0.5  // Default opacity
         ]
       }
     });
 
-    // Add borders layer
+    // Add state borders
     map.value.addLayer({
       id: 'state-borders',
       type: 'line',
@@ -160,7 +222,7 @@ const setupMapLayers = async () => {
       }
     });
 
-    // Add interactivity
+    // Setup interactions and legend
     setupMapInteractions();
     addMapLegend(maxCapacity);
   } catch (error) {
@@ -168,15 +230,21 @@ const setupMapLayers = async () => {
   }
 };
 
-// Map interactions setup
+/**
+ * Sets up map interaction handlers for hover effects and state selection
+ * Manages hover states, tooltips, and click interactions
+ */
 const setupMapInteractions = () => {
   if (!map.value) return;
 
+  // Track currently hovered state
   let hoveredStateId: number | null = null;
 
+  // Handle mouse movement over states
   map.value.on('mousemove', 'state-fills', (e) => {
     if (!e.features?.length || !map.value) return;
 
+    // Remove hover state from previously hovered state
     if (hoveredStateId !== null) {
       map.value.setFeatureState(
         { source: 'states', id: hoveredStateId },
@@ -184,6 +252,7 @@ const setupMapInteractions = () => {
       );
     }
 
+    // Set hover state for current state
     hoveredStateId = e.features[0].id as number;
     map.value.setFeatureState(
       { source: 'states', id: hoveredStateId },
@@ -194,6 +263,7 @@ const setupMapInteractions = () => {
     addTooltip(e);
   });
 
+  // Remove hover state and tooltip on mouse leave
   map.value.on('mouseleave', 'state-fills', () => {
     if (hoveredStateId !== null && map.value) {
       map.value.setFeatureState(
@@ -206,6 +276,8 @@ const setupMapInteractions = () => {
     removeTooltip();
   });
 
+
+   // Handle state selection on click
   map.value.on('click', 'state-fills', (e) => {
     if (!e.features?.length) return;
     const properties = e.features[0].properties;
@@ -215,7 +287,10 @@ const setupMapInteractions = () => {
   });
 };
 
-// Tooltip handlers
+/**
+ * Creates and positions a tooltip showing state information
+ * @param e - MapLibre mouse event containing feature information
+ */
 const addTooltip = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapboxGeoJSONFeature[] }) => {
   if (!e.features?.length || !mapContainer.value) return;
 
@@ -223,6 +298,7 @@ const addTooltip = (e: maplibregl.MapMouseEvent & { features?: maplibregl.Mapbox
   const capacity = feature.properties.capacity;
   const state = feature.properties.postal;
   
+  // Create tooltip element
   const tooltip = document.createElement('div');
   tooltip.className = 'map-tooltip';
   tooltip.innerHTML = `
@@ -230,14 +306,20 @@ const addTooltip = (e: maplibregl.MapMouseEvent & { features?: maplibregl.Mapbox
     Capacity: ${formatNumber(capacity)} MW
   `;
   
+  // Position tooltip near cursor
   const tooltipOffset = 10;
   tooltip.style.left = `${e.point.x + tooltipOffset}px`;
   tooltip.style.top = `${e.point.y + tooltipOffset}px`;
   
+  // Remove existing tooltip and add new one
   removeTooltip();
   mapContainer.value.appendChild(tooltip);
 };
 
+
+/**
+ * Removes the current tooltip from the DOM
+ */
 const removeTooltip = () => {
   const tooltip = document.querySelector('.map-tooltip');
   if (tooltip) {
@@ -245,7 +327,10 @@ const removeTooltip = () => {
   }
 };
 
-// Legend setup
+/**
+ * Creates and adds a legend showing capacity color scale
+ * @param maxCapacity - Maximum capacity value for color scale
+ */
 const addMapLegend = (maxCapacity: number) => {
   if (!mapContainer.value) return;
 
@@ -279,25 +364,7 @@ const addMapLegend = (maxCapacity: number) => {
   mapContainer.value.appendChild(legend);
 };
 
-// Watch for state changes
-watch(selectedState, (newState) => {
-  if (!map.value) return;
 
-  map.value.setPaintProperty('state-fills', 'fill-opacity', [
-    'case',
-    ['boolean', ['==', ['get', 'postal'], newState], false],
-    0.9,
-    ['boolean', ['==', ['feature-state', 'hover'], true], false],
-    0.7,
-    0.5
-  ]);
-});
-
-// Initialize on mount
-onMounted(async () => {
-  await store.fetchStates();
-  initializeMap();
-});
 </script>
 
 <style scoped>

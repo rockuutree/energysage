@@ -1,4 +1,9 @@
-# main.py
+"""
+Solar Installations API
+A FastAPI application serving solar installation data across US states.
+Provides endpoints for state-specific and nationwide installation data.
+"""
+
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
@@ -6,33 +11,65 @@ import numpy as np
 from typing import Optional
 import logging
 
+# Configure Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Initialize FastAPI app
 app = FastAPI()
 
+# Configure CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173"], # Frontend development server
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Load and process data
+    """
+    Load and preprocess solar installation data from CSV file.
+    
+    Returns:
+        pd.DataFrame: Cleaned DataFrame containing solar installation data
+        
+    Processing steps:
+    1. Load CSV file
+    2. Replace empty strings with NaN
+    3. Convert numeric columns to proper data types
+    """
 def load_data():
     df = pd.read_csv('solar.csv')
     # Clean data
     df = df.replace('', np.nan)
+    # Convert columns to numeric, and changes coerce errors to NaN
     df['p_cap_ac'] = pd.to_numeric(df['p_cap_ac'], errors='coerce')
     df['p_cap_dc'] = pd.to_numeric(df['p_cap_dc'], errors='coerce')
     df['p_year'] = pd.to_numeric(df['p_year'], errors='coerce')
     return df
 
+# Load data on startup
 df = load_data()
 print(f"Loaded {len(df)} installations")
 print("Available states:", sorted(df['p_state'].unique().tolist()))
 
+
+    """
+    Get detailed solar installation data for a specific state.
+    
+    Args:
+        state (str): Two-letter state code (e.g., 'CA', 'NY')
+        
+    Returns:
+        dict: Dictionary containing:
+            - stats: State-level statistics including total installations,
+                    capacities, and year range
+            - installations: List of individual installation details
+            
+    Error returns:
+        dict: Error message if no installations found for state
+    """
 @app.get("/api/state/{state}")
 async def get_state_data(state: str):
     """Get detailed data for a specific state"""
@@ -42,6 +79,7 @@ async def get_state_data(state: str):
     if len(state_data) == 0:
         return {"error": "No installations found for this state"}
     
+    # Process Individual Installations
     installations = []
     for _, row in state_data.iterrows():
         installation = {
@@ -59,6 +97,7 @@ async def get_state_data(state: str):
         }
         installations.append(installation)
     
+    # Calculate State-level statistics
     stats = {
         "totalInstallations": len(state_data),
         "totalCapacity": float(state_data['p_cap_ac'].sum()),
@@ -75,13 +114,26 @@ async def get_state_data(state: str):
         "installations": sorted(installations, key=lambda x: x['year'] if x['year'] else 0, reverse=True)
     }
 
+
+    """
+    Get summary information for all states with solar installations.
+    
+    Returns:
+        dict: Dictionary containing list of states with:
+            - code: State code
+            - installations: Number of installations
+            - totalCapacity: Total AC capacity in MW
+    """
 @app.get("/api/states")
 async def get_states():
     """Get list of all states with installations"""
     states = sorted(df['p_state'].unique().tolist())
+    # Calculate installations per state
     state_counts = df.groupby('p_state').size().to_dict()
+    # Calculate total capacity per state
     state_capacities = df.groupby('p_state')['p_cap_ac'].sum().to_dict()
     
+    # Combine State information
     state_info = [
         {
             "code": state,
