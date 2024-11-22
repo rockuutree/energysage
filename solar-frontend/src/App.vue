@@ -1,6 +1,7 @@
 <!-- src/App.vue -->
 <template>
   <div class="app">
+
     <SolarMap />
   </div>
 </template>
