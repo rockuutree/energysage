@@ -1,7 +1,9 @@
 """
 Solar Installations API
-A FastAPI application serving solar installation data across US states.
+Uses FastAPI to create a simple API for solar installation data.
 Provides endpoints for state-specific and nationwide installation data.
+
+The U.S. Large-Scale Solar Photovoltaic Database
 """
 
 from fastapi import FastAPI, Query
@@ -28,22 +30,23 @@ app.add_middleware(
 )
 
 # Load and process data
-    """
-    Load and preprocess solar installation data from CSV file.
+
+    # Load and preprocess solar installation data from CSV file.
     
-    Returns:
-        pd.DataFrame: Cleaned DataFrame containing solar installation data
+    # Returns:
+    #     pd.DataFrame: Cleaned DataFrame containing solar installation data
         
-    Processing steps:
-    1. Load CSV file
-    2. Replace empty strings with NaN
-    3. Convert numeric columns to proper data types
-    """
+    # Processing steps:
+    # 1. Load CSV file
+    # 2. Replace empty strings with NaN
+    # 3. Convert numeric columns to proper data types
+
 def load_data():
+    # Loading in data from CSV using pandas
     df = pd.read_csv('solar.csv')
     # Clean data
     df = df.replace('', np.nan)
-    # Convert columns to numeric, and changes coerce errors to NaN
+    # Convert columns to numeric, and convert empty values to NaN
     df['p_cap_ac'] = pd.to_numeric(df['p_cap_ac'], errors='coerce')
     df['p_cap_dc'] = pd.to_numeric(df['p_cap_dc'], errors='coerce')
     df['p_year'] = pd.to_numeric(df['p_year'], errors='coerce')
@@ -55,27 +58,29 @@ print(f"Loaded {len(df)} installations")
 print("Available states:", sorted(df['p_state'].unique().tolist()))
 
 
-    """
-    Get detailed solar installation data for a specific state.
+    # """
+    # Get detailed solar installation data for a specific state.
     
-    Args:
-        state (str): Two-letter state code (e.g., 'CA', 'NY')
+    # Args:
+    #     state (str): Two-letter state code (e.g., 'CA', 'NY')
         
-    Returns:
-        dict: Dictionary containing:
-            - stats: State-level statistics including total installations,
-                    capacities, and year range
-            - installations: List of individual installation details
+    # Returns:
+    #     dict: Dictionary containing:
+    #         - stats: State-level statistics including total installations,
+    #                 capacities, and year range
+    #         - installations: List of individual installation details
             
-    Error returns:
-        dict: Error message if no installations found for state
-    """
+    # Error returns:
+    #     dict: Error message if no installations found for state
+    # """
 @app.get("/api/state/{state}")
 async def get_state_data(state: str):
-    """Get detailed data for a specific state"""
+    # Get detailed data for a specific stat
     print(f"Fetching data for state: {state}")
+    # Filter data for the specific state
     state_data = df[df['p_state'] == state].copy()
     
+    # Empty dataset for x state
     if len(state_data) == 0:
         return {"error": "No installations found for this state"}
     
@@ -97,18 +102,24 @@ async def get_state_data(state: str):
         }
         installations.append(installation)
     
-    # Calculate State-level statistics
+    # Calculate State statistics
     stats = {
+        # Count Installations
         "totalInstallations": len(state_data),
+        # Sum AC Capacity
         "totalCapacity": float(state_data['p_cap_ac'].sum()),
+        # Average AC Capacity
         "averageCapacity": float(state_data['p_cap_ac'].mean()),
+        # Count unique counties
         "totalCounties": len(state_data['p_county'].unique()),
+        # Installation year range
         "yearRange": [
             int(state_data['p_year'].min()),
             int(state_data['p_year'].max())
         ] if not state_data['p_year'].isna().all() else None
     }
     
+    # 
     return {
         "stats": stats,
         "installations": sorted(installations, key=lambda x: x['year'] if x['year'] else 0, reverse=True)
@@ -124,6 +135,7 @@ async def get_state_data(state: str):
             - installations: Number of installations
             - totalCapacity: Total AC capacity in MW
     """
+    
 @app.get("/api/states")
 async def get_states():
     """Get list of all states with installations"""

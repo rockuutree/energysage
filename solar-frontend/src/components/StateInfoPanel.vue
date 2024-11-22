@@ -134,9 +134,11 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+// Emits close event to parent component
 const emit = defineEmits<{
   (e: 'close'): void; // event emitted when panel is closed
 }>();
+
 
 const searchQuery = ref(''); // Installation search query
 const currentPage = ref(1); // Current page number

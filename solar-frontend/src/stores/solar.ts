@@ -6,6 +6,7 @@
  */
 
 import { defineStore } from 'pinia';
+// Makes the HTTP request to the API
 import axios from 'axios';
 
 // This is a Pinia store that manages the application's state

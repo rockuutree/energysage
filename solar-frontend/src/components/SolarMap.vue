@@ -1,71 +1,19 @@
 // src/components/SolarMap.vue
 
-
-
 /**
  * SolarMap Component
  * 
  * Displays an interactive map of solar installations across the United States.
  * Features include state selection, hover effects, tooltips, and a detailed sidebar with state information.
  */
-<template>
-  <!-- Main Container for the map and sidebar -->
-  <div class="map-container">
-  <!-- Map container element, referenced for maplibre initialization -->
-    <div ref="mapContainer" class="map"></div>
-    
-    <!-- Sidebar -->
-    <!-- Empty State -->
-    <div v-if="!selectedState" class="sidebar">
-      <h2 class="text-2xl font-semibold mb-4">US Solar Installations Map</h2>
-      <p class="text-gray-600 mb-4">Click on a state to view installation details</p>
 
-      <!-- Overview section showing statistics -->
-      <div v-if="!loading" class="overview">
-        <div class="stats-overview">
-          <h3 class="text-xl font-medium mb-4">Overview</h3>
-          <p><strong>States with Data:</strong> {{ allStates.length }}</p>
-
-          <!-- Top States Listing -->
-          <div class="top-states mt-6">
-            <h4 class="text-lg font-medium mb-3">Top States by Capacity:</h4>
-            <ul class="space-y-2">
-              <li v-for="state in topStates" :key="state.code"
-                  class="p-2 bg-gray-50 rounded-lg">
-                {{ state.code }}: {{ formatNumber(state.totalCapacity) }} MW
-                <span class="text-gray-600">
-                  ({{ state.installations }} installations)
-                </span>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- State Information Panel when a state is selected -->
-    <div v-else class="sidebar">
-      <StateInfoPanel
-        :selected-state="selectedState"
-        :state-data="stateData"
-        :loading="loading"
-        :error="error"
-        @close="store.clearSelectedState()"
-      />
-    </div>
-  </div>
-</template>
-
-<script setup lang="ts">
+ <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue';
 import maplibregl from 'maplibre-gl';
 import { useSolarStore } from '../stores/solar';
 import { storeToRefs } from 'pinia';
 import StateInfoPanel from './StateInfoPanel.vue';
 import 'maplibre-gl/dist/maplibre-gl.css';
-
-
-
 
 // MapTiler API key for base map tiles
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY;
@@ -134,10 +82,11 @@ const initializeMap = () => {
   map.value = new maplibregl.Map({
     container: mapContainer.value,
     style: `https://api.maptiler.com/maps/basic-v2/style.json?key=${MAPTILER_KEY}`,
-    center: [-98.5795, 39.8283],
+    center: [-98.5795, 39.8283], // Centers map on US (longitude, latitude)
     zoom: 3
   });
 
+  // Event Listner: Triggers layer setup once map loads
   map.value.on('load', setupMapLayers);
 };
 
@@ -153,17 +102,22 @@ const setupMapLayers = async () => {
     const response = await fetch('https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_110m_admin_1_states_provinces_shp.geojson');
     const statesData = await response.json();
     
+    // Finds highest capacity among all states for color scaling
     const maxCapacity = Math.max(...allStates.value.map(s => s.totalCapacity));
     
    // Process GeoJSON data to include solar capacity information
     const processedData = {
       type: 'FeatureCollection',
       features: statesData.features
+      // Filters to only US states
         .filter((feature: any) => feature.properties.admin === 'United States of America')
+        // Adds capacity data to each state feature
         .map((feature: any, index: number) => {
+          // Find state data by postal code
           const stateData = allStates.value.find(
             s => s.code === feature.properties.postal
           );
+          // Return feature with capacity data
           return {
             ...feature,
             id: index,
@@ -176,7 +130,7 @@ const setupMapLayers = async () => {
         })
     };
 
-    // Add data source to map
+    // Adds GeoJSON data as a source to the map
     map.value.addSource('states', {
       type: 'geojson',
       data: processedData,
@@ -187,7 +141,7 @@ const setupMapLayers = async () => {
     map.value.addLayer({
       id: 'state-fills',
       type: 'fill',
-      source: 'states',
+      source: 'states', // References surce data
       paint: {
         'fill-color': [
           'interpolate',
@@ -277,10 +231,13 @@ const setupMapInteractions = () => {
   });
 
 
-   // Handle state selection on click
+   // Handle state selection on click (event listener)
   map.value.on('click', 'state-fills', (e) => {
+    // Exit if no features at click location
     if (!e.features?.length) return;
+    // Get properties of clicked state
     const properties = e.features[0].properties;
+    // If state has postal, fetch its data
     if (properties.postal) {
       store.fetchStateData(properties.postal);
     }
@@ -366,6 +323,56 @@ const addMapLegend = (maxCapacity: number) => {
 
 
 </script>
+
+<template>
+  <!-- Main Container for the map and sidebar -->
+  <div class="map-container">
+  <!-- Map container element, referenced for maplibre initialization -->
+    <div ref="mapContainer" class="map"></div>
+    
+    <!-- Sidebar -->
+    <!-- Empty State -->
+    <div v-if="!selectedState" class="sidebar">
+      <h2 class="text-2xl font-semibold mb-4">US Solar Installations Map</h2>
+      <p class="text-gray-600 mb-4">Click on a state to view installation details</p>
+
+      <!-- Overview section showing statistics -->
+      <div v-if="!loading" class="overview">
+        <div class="stats-overview">
+          <h3 class="text-xl font-medium mb-4">Overview</h3>
+          <p><strong>States with Data:</strong> {{ allStates.length }}</p>
+
+          <!-- Top States Listing -->
+          <div class="top-states mt-6">
+            <h4 class="text-lg font-medium mb-3">Top States by Capacity:</h4>
+            <ul class="space-y-2">
+              <li v-for="state in topStates" :key="state.code"
+                  class="p-2 bg-gray-50 rounded-lg">
+                {{ state.code }}: {{ formatNumber(state.totalCapacity) }} MW
+                <span class="text-gray-600">
+                  ({{ state.installations }} installations)
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- State Information Panel when a state is selected -->
+    <div v-else class="sidebar">
+      <StateInfoPanel
+        :selected-state="selectedState"
+        :state-data="stateData"
+        :loading="loading"
+        :error="error"
+        @close="store.clearSelectedState()"
+      />
+    </div>
+  </div>
+</template>
+
+
 
 <style scoped>
 .map-container {
